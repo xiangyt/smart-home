@@ -52,8 +52,8 @@
         <div class="sidebar-footer">
           <div class="system-status">
             <div class="status-item">
-              <div class="status-dot online"></div>
-              <span>系统在线</span>
+              <div class="status-dot" :class="systemStatus.class"></div>
+              <span>{{ systemStatus.text }}</span>
             </div>
             <div class="status-item">
               <el-icon size="14"><Clock /></el-icon>
@@ -94,12 +94,20 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { House, Monitor, Setting, Timer, Clock, User, Expand, Fold } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import api from './api'
 
 const route = useRoute()
 const currentTime = ref('')
 
 // 侧边栏收起状态
 const sidebarCollapsed = ref(false)
+
+// 系统状态
+const systemStatus = ref({
+  online: false,
+  class: 'offline',
+  text: '系统离线'
+})
 
 // 切换侧边栏
 const toggleSidebar = () => {
@@ -138,13 +146,38 @@ const updateTime = () => {
   })
 }
 
+// 检查系统状态
+const checkSystemStatus = async () => {
+  try {
+    // 使用专门的健康检查接口
+    await api.get('/health', { timeout: 3000 })
+    systemStatus.value = {
+      online: true,
+      class: 'online',
+      text: '系统在线'
+    }
+  } catch (error) {
+    systemStatus.value = {
+      online: false,
+      class: 'offline',
+      text: '系统离线'
+    }
+  }
+}
+
 
 
 let timeInterval: NodeJS.Timeout
+let statusInterval: NodeJS.Timeout
 
 onMounted(() => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
+  
+  // 立即检查一次系统状态
+  checkSystemStatus()
+  // 每5秒检查一次系统状态
+  statusInterval = setInterval(checkSystemStatus, 5000)
   
   // 从本地存储恢复侧边栏状态
   const savedState = localStorage.getItem('sidebarCollapsed')
@@ -156,6 +189,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval)
+  }
+  if (statusInterval) {
+    clearInterval(statusInterval)
   }
 })
 </script>
@@ -491,9 +527,18 @@ onUnmounted(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.status-dot.online {
   background: #27ae60;
   box-shadow: 0 0 10px rgba(39, 174, 96, 0.5);
   animation: pulse 2s infinite;
+}
+
+.status-dot.offline {
+  background: #e74c3c;
+  box-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
 }
 
 @keyframes pulse {
